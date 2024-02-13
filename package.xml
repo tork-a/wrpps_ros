@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>wrpps_ros</name>
+  <version>0.0.0</version>
+  <description>ROS driver package for WrPPS board</description>
+
+  <maintainer email="pazeshun3682@gmail.com">Shun Hasegawa</maintainer>
+  <author email="pazeshun3682@gmail.com">Shun Hasegawa</author>
+
+  <license>BSD</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>message_generation</build_depend>
+  <build_export_depend>message_runtime</build_export_depend>
+  <exec_depend>force_proximity_ros</exec_depend>
+  <exec_depend>message_runtime</exec_depend>
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>rosserial_arduino</exec_depend>
+  <exec_depend>rosserial_python</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+
+
+  <export>
+  </export>
+</package>

@@ -1,0 +1,42 @@
+<launch>
+
+  <arg name="rosserial_respawn" default="false" />
+  <arg name="port" default="/dev/ttyACM0" />
+  <arg name="baud" default="115200" />
+  <arg name="intensity_frame_id" default="intensity_frame" />
+  <arg name="tof_frame_id" default="tof_frame" />
+  <arg name="rate" default="100" />
+
+  <node name="wrpps_single_board_driver"
+        pkg="rosserial_python" type="serial_node.py"
+        respawn="$(arg rosserial_respawn)"
+        output="screen">
+    <rosparam subst_value="true">
+      port: $(arg port)
+      baud: $(arg baud)
+      intensity_frame_id: $(arg intensity_frame_id)
+      tof_frame_id: $(arg tof_frame_id)
+      rate: $(arg rate)
+    </rosparam>
+  </node>
+
+  <node name="tof_low_pass_filter" pkg="wrpps_ros" type="range_low_pass_filter.py" output="screen">
+    <remap from="~input" to="wrpps_single_board_driver/output/range_tof"/>
+    <rosparam>
+      input_coeff: 0.3  # TODO: Tune this to $(arg rate)
+    </rosparam>
+  </node>
+  <node name="intensity_prox_calibrator" pkg="wrpps_ros" type="intensity_prox_calibrator.py" output="screen">
+    <remap from="~input/intensity" to="wrpps_single_board_driver/output/proximity_intensity"/>
+    <remap from="~input/tof" to="tof_low_pass_filter/output"/>
+    <rosparam>
+      i_height_from_tof: 0.0
+      use_i_average: true
+      i_valid_min: 20
+      i_valid_max: 1000
+      i_valid_max_dist: 0.06
+      tof_valid_min: 0.045
+    </rosparam>
+  </node>
+
+</launch>
