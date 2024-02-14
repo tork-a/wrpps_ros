@@ -121,7 +121,7 @@ class IntensityProxCalibrator(object):
                                     ((self.i_valid_min + self.i_valid_max) /
                                      2.0))):
                 pass
-            elif (not is_tof_valid) and (self.i_diff_from_init < self.i_valid_min):
+            elif not is_tof_valid:
                 pass
             else:
                 dist_combined = distance
