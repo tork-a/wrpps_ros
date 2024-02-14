@@ -43,6 +43,7 @@ class IntensityProxCalibrator(object):
         self.i_raw = None
         self.i_diff_from_init = None
         self.tof_dist = None
+        self.tof_tm = None
         self.i_diff_queue = []
         self.i_tm_queue = []
         self.is_latest_tof_published = True
@@ -82,12 +83,18 @@ class IntensityProxCalibrator(object):
             self.i_diff_queue.pop(0)
             self.i_tm_queue.pop(0)
 
-        if self.tof_dist is not None:
-            tof_d_from_i = self.tof_dist - self.i_height_from_tof
+        is_tof_valid = False
+        if (self.tof_tm is not None) and (abs((self.tof_tm -
+                                               msg.header.stamp).to_sec() -
+                                              self.tof_delay_from_i) <=
+                                          self.tof_tm_tolerance):
+            is_tof_valid = True
         dist_combined = None
-        if not self.is_latest_tof_published:
-            dist_combined = tof_d_from_i
-            self.is_latest_tof_published = True
+        if is_tof_valid:
+            tof_d_from_i = self.tof_dist - self.i_height_from_tof
+            if not self.is_latest_tof_published:
+                dist_combined = tof_d_from_i
+                self.is_latest_tof_published = True
 
         if self.i_refl_param is None:
             rospy.logwarn_throttle(10, 'Refl. param is not calculated yet')
@@ -107,10 +114,14 @@ class IntensityProxCalibrator(object):
                     (self.i_refl_param + init_refl) / self.i_raw)
 
             # Create distance combined with ToF output
-            if ((distance == float('inf')) |
-                ((tof_d_from_i > self.i_valid_max_dist) &
-                 (self.i_diff_from_init <
-                  ((self.i_valid_min + self.i_valid_max) / 2.0)))):
+            if distance == float('inf'):
+                pass
+            elif is_tof_valid and ((tof_d_from_i > self.i_valid_max_dist) and
+                                   (self.i_diff_from_init <
+                                    ((self.i_valid_min + self.i_valid_max) /
+                                     2.0))):
+                pass
+            elif (not is_tof_valid) and (self.i_diff_from_init < self.i_valid_min):
                 pass
             else:
                 dist_combined = distance
@@ -142,6 +153,7 @@ class IntensityProxCalibrator(object):
 
     def _tof_cb(self, msg):
         self.tof_dist = msg.range
+        self.tof_tm = msg.header.stamp
         self.tof_max_range = msg.max_range
         self.is_latest_tof_published = False
         if self.i_diff_from_init is None:
