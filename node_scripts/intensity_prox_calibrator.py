@@ -22,13 +22,13 @@ class IntensityProxCalibrator(object):
         self.i_valid_min = rospy.get_param('~i_valid_min', 50)
         self.i_valid_max = rospy.get_param('~i_valid_max', 1000)
         self.i_valid_max_dist = rospy.get_param('~i_valid_max_dist', 0.06)
-        self.i_height_from_tof = rospy.get_param('~i_height_from_tof', None)
-        if self.i_height_from_tof is not None:
-            self.i_height_from_tof = float(self.i_height_from_tof)
-        self.i_queue_size_for_tof = rospy.get_param('~i_queue_size_for_tof', 2)
-        self.tof_valid_min = rospy.get_param('~tof_valid_min', 0.04)
-        self.tof_delay_from_i = rospy.get_param('~tof_delay_from_i', 0.0)
-        self.tof_tm_tolerance = rospy.get_param('~tof_tm_tolerance', 0.02)
+        self.i_height_from_rng = rospy.get_param('~i_height_from_rng', None)
+        if self.i_height_from_rng is not None:
+            self.i_height_from_rng = float(self.i_height_from_rng)
+        self.i_queue_size_for_rng = rospy.get_param('~i_queue_size_for_rng', 2)
+        self.rng_valid_min = rospy.get_param('~rng_valid_min', 0.04)
+        self.rng_delay_from_i = rospy.get_param('~rng_delay_from_i', 0.0)
+        self.rng_tm_tolerance = rospy.get_param('~rng_tm_tolerance', 0.02)
         self.use_i_average = rospy.get_param('~use_i_average', False)
         self.rubber_t = rospy.get_param('~rubber_thickness', None)
         if self.rubber_t is not None:
@@ -39,20 +39,20 @@ class IntensityProxCalibrator(object):
         self.i_min_range = rospy.get_param('~i_min_range', 0.0)
         # Default value: VCNL4040
         self.i_max_range = rospy.get_param('~i_max_range', 0.2)
-        self.tof_max_range = None
+        self.rng_max_range = None
         self.i_raw = None
         self.i_diff_from_init = None
-        self.tof_dist = None
-        self.tof_tm = None
+        self.rng_dist = None
+        self.rng_tm = None
         self.i_diff_queue = []
         self.i_tm_queue = []
-        self.is_latest_tof_published = True
+        self.is_latest_rng_published = True
 
         # Distance converted from intensity
         self.pub_range_i = rospy.Publisher(
             '~output/range_intensity', Range, queue_size=1)
-        # Distance combined with ToF output
-        ## Far part: ToF distance
+        # Distance combined with range sensor
+        ## Far part: range sensor distance
         ## Middle & close part: distance generated from intensity
         self.pub_range_comb = rospy.Publisher(
             '~output/range_combined', Range, queue_size=1)
@@ -61,8 +61,8 @@ class IntensityProxCalibrator(object):
             '~output/intensity_model_param', IntensityModelParam, queue_size=1)
         self.sub_input_i = rospy.Subscriber(
             '~input/intensity', ProximityStamped, self._intensity_cb)
-        self.sub_input_tof = rospy.Subscriber(
-            '~input/tof', Range, self._tof_cb)
+        self.sub_input_rng = rospy.Subscriber(
+            '~input/range', Range, self._rng_cb)
         self.init_srv = rospy.Service(
             '~set_init_intensity', Trigger, self._set_init_intensity)
         self.reset_refl_param_srv = rospy.Service(
@@ -79,22 +79,22 @@ class IntensityProxCalibrator(object):
         self.i_diff_from_init = self.i_raw - self.i_init_value
         self.i_diff_queue.append(self.i_diff_from_init)
         self.i_tm_queue.append(msg.header.stamp)
-        while len(self.i_diff_queue) > self.i_queue_size_for_tof:
+        while len(self.i_diff_queue) > self.i_queue_size_for_rng:
             self.i_diff_queue.pop(0)
             self.i_tm_queue.pop(0)
 
-        is_tof_valid = False
-        if (self.tof_tm is not None) and (abs((self.tof_tm -
+        is_rng_valid = False
+        if (self.rng_tm is not None) and (abs((self.rng_tm -
                                                msg.header.stamp).to_sec() -
-                                              self.tof_delay_from_i) <=
-                                          self.tof_tm_tolerance):
-            is_tof_valid = True
+                                              self.rng_delay_from_i) <=
+                                          self.rng_tm_tolerance):
+            is_rng_valid = True
         dist_combined = None
-        if is_tof_valid:
-            tof_d_from_i = self.tof_dist - self.i_height_from_tof
-            if not self.is_latest_tof_published:
-                dist_combined = tof_d_from_i
-                self.is_latest_tof_published = True
+        if is_rng_valid:
+            rng_d_from_i = self.rng_dist - self.i_height_from_rng
+            if not self.is_latest_rng_published:
+                dist_combined = rng_d_from_i
+                self.is_latest_rng_published = True
 
         if self.i_refl_param is None:
             rospy.logwarn_throttle(10, 'Refl. param is not calculated yet')
@@ -113,15 +113,15 @@ class IntensityProxCalibrator(object):
                 distance = math.sqrt(
                     (self.i_refl_param + init_refl) / self.i_raw)
 
-            # Create distance combined with ToF output
+            # Create distance combined with range sensor
             if distance == float('inf'):
                 pass
-            elif is_tof_valid and ((tof_d_from_i > self.i_valid_max_dist) and
+            elif is_rng_valid and ((rng_d_from_i > self.i_valid_max_dist) and
                                    (self.i_diff_from_init <
                                     ((self.i_valid_min + self.i_valid_max) /
                                      2.0))):
                 pass
-            elif not is_tof_valid:
+            elif not is_rng_valid:
                 pass
             else:
                 dist_combined = distance
@@ -150,8 +150,8 @@ class IntensityProxCalibrator(object):
         msg_range_comb.radiation_type = Range.INFRARED
         msg_range_comb.field_of_view = self.i_fov
         msg_range_comb.min_range = self.i_min_range
-        if self.tof_max_range is not None:
-            msg_range_comb.max_range = self.tof_max_range
+        if self.rng_max_range is not None:
+            msg_range_comb.max_range = self.rng_max_range
         else:
             msg_range_comb.max_range = self.i_max_range
         self.pub_range_comb.publish(msg_range_comb)
@@ -161,34 +161,34 @@ class IntensityProxCalibrator(object):
         # accepts the case where the value is not between these limits
         # and we assume someone wants to know the value even in that case
 
-    def _tof_cb(self, msg):
-        self.tof_max_range = msg.max_range
+    def _rng_cb(self, msg):
+        self.rng_max_range = msg.max_range
         if math.isnan(msg.range) or math.isinf(msg.range):
             return
-        self.tof_dist = msg.range
-        self.tof_tm = msg.header.stamp
-        self.is_latest_tof_published = False
+        self.rng_dist = msg.range
+        self.rng_tm = msg.header.stamp
+        self.is_latest_rng_published = False
         if self.i_diff_from_init is None:
             rospy.logwarn_throttle(
                 10, 'Prox diff_from_init is not set, so skipping')
             return
-        if self.i_height_from_tof is None:
-            self.i_height_from_tof = 0.0
+        if self.i_height_from_rng is None:
+            self.i_height_from_rng = 0.0
         for i_diff, i_tm in zip(self.i_diff_queue, self.i_tm_queue):
             if abs((msg.header.stamp - i_tm).to_sec() -
-                   self.tof_delay_from_i) > \
-               self.tof_tm_tolerance:
+                   self.rng_delay_from_i) > \
+               self.rng_tm_tolerance:
                 continue
             if i_diff < self.i_valid_min:
                 continue
             if i_diff > self.i_valid_max:
                 continue
-            if self.tof_dist < self.tof_valid_min:
+            if self.rng_dist < self.rng_valid_min:
                 continue
-            if self.tof_dist > self.i_valid_max_dist + self.i_height_from_tof:
+            if self.rng_dist > self.i_valid_max_dist + self.i_height_from_rng:
                 continue
             self.i_refl_param = \
-                i_diff * ((self.tof_dist - self.i_height_from_tof) ** 2)
+                i_diff * ((self.rng_dist - self.i_height_from_rng) ** 2)
 
     def _set_init_intensity(self, req):
         is_success = True

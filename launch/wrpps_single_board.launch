@@ -34,14 +34,14 @@
   </node>
   <node name="intensity_prox_calibrator" pkg="wrpps_ros" type="intensity_prox_calibrator.py" output="screen">
     <remap from="~input/intensity" to="wrpps_single_board_driver/output/proximity_intensity"/>
-    <remap from="~input/tof" to="tof_low_pass_filter/output"/>
+    <remap from="~input/range" to="tof_low_pass_filter/output"/>
     <rosparam>
-      i_height_from_tof: 0.0
+      i_height_from_rng: 0.0
       use_i_average: true
       i_valid_min: 20
       i_valid_max: 1000
       i_valid_max_dist: 0.06
-      tof_valid_min: 0.045
+      rng_valid_min: 0.045
     </rosparam>
   </node>
 
