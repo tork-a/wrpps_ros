@@ -1,3 +1,5 @@
+#include <math.h>
+#include <stdio.h>
 #include <Wire.h>
 #include <ros.h>
 #include <force_proximity_ros/Proximity.h>
@@ -244,6 +246,7 @@ void loop()
   if (!tof_sensor.waitRangeComplete())
   {
     nh.logerror("Failed to wait completion of Range operation of VL53L0X");
+    // TODO: Try to reset VL53L0X for recovering from momentary I2C error
   }
   else
   {
@@ -251,28 +254,41 @@ void loop()
     if (tof_sensor.getRangingMeasurement(&tof_data) != VL53L0X_ERROR_NONE)
     {
       nh.logerror("Failed to get measurement data of VL53L0X");
+      // TODO: Try to reset VL53L0X for recovering from momentary I2C error
     }
     else
     {
-      if (tof_data.RangeStatus > 5)
+      uint8_t status = tof_data.RangeStatus;
+      if (status > 5)
       {
-        nh.logerror("RangeStatus of VL53L0X was strange");
-      }
-      else if (tof_data.RangeStatus == 4)
-      {
-        // nh.logdebug("RangeStatus of VL53L0X was Phase Fail, so skip publishing (in our experience, data is incorrect (out of range?))");
-        // This logging makes loop slow
+        char buf[64];
+        snprintf(buf, 64, "RangeStatus of VL53L0X was %d, it is strange", status);
+        nh.logerror(buf);
+        // TODO: Try to reset VL53L0X for recovering from momentary I2C error
       }
       else
       {
         uint16_t range_mm = tof_data.RangeMilliMeter;
-        if ((range_mm != 0) && (range_mm != 8190))
+        if ((status != 4) && (range_mm != 0) && (range_mm != 8190))
         {
-          // In our experience, 0 and 8190 are incorrect data
           tof_msg.range = (float)range_mm / 1000.0f;
-          tof_msg.header.stamp = nh.now();
-          tof_pub.publish(&tof_msg);
+          // We do not limit this value between tof_min_range and tof_max_range because
+          // https://www.ros.org/reps/rep-0117.html#reference-implementation
+          // accepts the case where the value is not between these limits
+          // and we assume someone wants to know the value even in that case
         }
+        else
+        {
+          // In our experience, measurement is erroneous when:
+          // - RangeStatus is 4 (Phase Fail)
+          // - RangeMilliMeter is 0 or 8190
+          // Out of range detections are included in those cases, but cannot be distinguished.
+          // So we publish NaN in all of those cases.
+          // cf. https://www.ros.org/reps/rep-0117.html
+          tof_msg.range = NAN;
+        }
+        tof_msg.header.stamp = nh.now();
+        tof_pub.publish(&tof_msg);
       }
     }
   }

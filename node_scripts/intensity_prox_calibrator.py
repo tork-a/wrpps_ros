@@ -141,20 +141,32 @@ class IntensityProxCalibrator(object):
             msg_param.init_value = self.i_init_value
             self.pub_param.publish(msg_param)
 
+        msg_range_comb = Range()
         if dist_combined is not None:
-            msg_range_comb = Range()
-            msg_range_comb.header = msg.header
             msg_range_comb.range = dist_combined
-            msg_range_comb.radiation_type = Range.INFRARED
-            msg_range_comb.field_of_view = self.i_fov
-            msg_range_comb.min_range = self.i_min_range
+        else:
+            msg_range_comb.range = float('nan')
+        msg_range_comb.header = msg.header
+        msg_range_comb.radiation_type = Range.INFRARED
+        msg_range_comb.field_of_view = self.i_fov
+        msg_range_comb.min_range = self.i_min_range
+        if self.tof_max_range is not None:
             msg_range_comb.max_range = self.tof_max_range
-            self.pub_range_comb.publish(msg_range_comb)
+        else:
+            msg_range_comb.max_range = self.i_max_range
+        self.pub_range_comb.publish(msg_range_comb)
+
+        # We do not limit range values between min_range and max_range because
+        # https://www.ros.org/reps/rep-0117.html#reference-implementation
+        # accepts the case where the value is not between these limits
+        # and we assume someone wants to know the value even in that case
 
     def _tof_cb(self, msg):
+        self.tof_max_range = msg.max_range
+        if math.isnan(msg.range) or math.isinf(msg.range):
+            return
         self.tof_dist = msg.range
         self.tof_tm = msg.header.stamp
-        self.tof_max_range = msg.max_range
         self.is_latest_tof_published = False
         if self.i_diff_from_init is None:
             rospy.logwarn_throttle(
