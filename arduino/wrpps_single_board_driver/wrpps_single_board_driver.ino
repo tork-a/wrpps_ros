@@ -5,6 +5,7 @@
 #include <force_proximity_ros/Proximity.h>
 #include <force_proximity_ros/ProximityStamped.h>
 #include <sensor_msgs/Range.h>
+#include <std_msgs/Bool.h>
 #include "Adafruit_VL53L0X.h"  // Search and install Adafruit_VL53L0X on library manager of Arduino IDE
 // https://github.com/adafruit/Adafruit_VL53L0X
 
@@ -131,18 +132,32 @@ public:
   }
 };
 
-/***** ROS *****/
 ros::NodeHandle  nh;
 force_proximity_ros::ProximityStamped intensity_msg;
 sensor_msgs::Range tof_msg;
 ros::Publisher intensity_pub("~output/proximity_intensity", &intensity_msg);
 ros::Publisher tof_pub("~output/range_tof", &tof_msg);
 
-/***** USER PARAMETERS *****/
+bool enable_int_command;
+bool enable_int_state;
+void enableIntCb(const std_msgs::Bool& msg)
+{
+  enable_int_command = msg.data;
+}
+ros::Subscriber<std_msgs::Bool> enable_int_sub("~enable_intensity", &enableIntCb);
+// srv is sub + pub on rosserial_arduino, so we do not have to use srv
+
+bool enable_tof_command;
+bool enable_tof_state;
+void enableTofCb(const std_msgs::Bool& msg)
+{
+  enable_tof_command = msg.data;
+}
+ros::Subscriber<std_msgs::Bool> enable_tof_sub("~enable_tof", &enableTofCb);
+// srv is sub + pub on rosserial_arduino, so we do not have to use srv
+
 unsigned long time;
 unsigned long loop_duration;  // loop duration in ms
-
-/***** GLOBAL VARIABLES *****/
 VCNL4040 intensity_sensor;
 Adafruit_VL53L0X tof_sensor;
 
@@ -155,6 +170,10 @@ void setup()
   nh.initNode();
   nh.advertise(intensity_pub);
   nh.advertise(tof_pub);
+  enable_int_command = true;
+  nh.subscribe(enable_int_sub);
+  enable_tof_command = true;
+  nh.subscribe(enable_tof_sub);
   while (!nh.connected())
   {
     nh.spinOnce();
@@ -212,6 +231,7 @@ void setup()
 
   intensity_sensor.init();
   intensity_sensor.startSensing();
+  enable_int_state = true;
 
   if (!tof_sensor.begin())
   {
@@ -233,62 +253,105 @@ void setup()
     nh.logerror("Failed to start measurement in VL53L0X");
     while (1);
   }
+  enable_tof_state = true;
 }
 
 void loop()
 {
   time = millis();
 
+  if (enable_int_state != enable_int_command)
+  {
+    enable_int_state = enable_int_command;
+    if (enable_int_command)
+    {
+      intensity_sensor.startSensing();
+    }
+    else
+    {
+      intensity_sensor.stopSensing();
+    }
+  }
+
+  if (enable_tof_state != enable_tof_command)
+  {
+    enable_tof_state = enable_tof_command;
+    if (enable_tof_command)
+    {
+      if (tof_sensor.startMeasurement() != VL53L0X_ERROR_NONE)
+      {
+        nh.logerror("Failed to start measurement in VL53L0X");
+        enable_tof_state = false;
+        // TODO: Try to reset VL53L0X for recovering from momentary I2C error
+      }
+    }
+    else
+    {
+      tof_sensor.stopRangeContinuous();
+      // TODO: Fix stopRangeContinuous to notify error
+      // TODO: Try to reset VL53L0X for recovering from momentary I2C error
+    }
+  }
+
   intensity_sensor.getProximity(&(intensity_msg.proximity));
   intensity_msg.header.stamp = nh.now();
   intensity_pub.publish(&intensity_msg);
 
-  if (!tof_sensor.waitRangeComplete())
+  if (!enable_tof_state)
   {
-    nh.logerror("Failed to wait completion of Range operation of VL53L0X");
-    // TODO: Try to reset VL53L0X for recovering from momentary I2C error
+    tof_msg.range = NAN;
+    tof_msg.header.stamp = nh.now();
+    tof_pub.publish(&tof_msg);
   }
   else
   {
-    VL53L0X_RangingMeasurementData_t tof_data;
-    if (tof_sensor.getRangingMeasurement(&tof_data) != VL53L0X_ERROR_NONE)
+    if (!tof_sensor.waitRangeComplete())
     {
-      nh.logerror("Failed to get measurement data of VL53L0X");
+      nh.logerror("Failed to wait completion of Range operation of VL53L0X");
       // TODO: Try to reset VL53L0X for recovering from momentary I2C error
     }
     else
     {
-      uint8_t status = tof_data.RangeStatus;
-      if (status > 5)
+      VL53L0X_RangingMeasurementData_t tof_data;
+      if (tof_sensor.getRangingMeasurement(&tof_data) != VL53L0X_ERROR_NONE)
       {
-        char buf[64];
-        snprintf(buf, 64, "RangeStatus of VL53L0X was %d, it is strange", status);
-        nh.logerror(buf);
+        nh.logerror("Failed to get measurement data of VL53L0X");
         // TODO: Try to reset VL53L0X for recovering from momentary I2C error
       }
       else
       {
-        uint16_t range_mm = tof_data.RangeMilliMeter;
-        if ((status != 4) && (range_mm != 0) && (range_mm != 8190))
+        uint8_t status = tof_data.RangeStatus;
+        if (status > 5)
         {
-          tof_msg.range = (float)range_mm / 1000.0f;
-          // We do not limit this value between tof_min_range and tof_max_range because
-          // https://www.ros.org/reps/rep-0117.html#reference-implementation
-          // accepts the case where the value is not between these limits
-          // and we assume someone wants to know the value even in that case
+          char buf[64];
+          snprintf(buf, 64, "RangeStatus of VL53L0X was %d, it is strange", status);
+          nh.logerror(buf);
+          // TODO: Try to reset VL53L0X for recovering from momentary I2C error
         }
         else
         {
-          // In our experience, measurement is erroneous when:
-          // - RangeStatus is 4 (Phase Fail)
-          // - RangeMilliMeter is 0 or 8190
-          // Out of range detections are included in those cases, but cannot be distinguished.
-          // So we publish NaN in all of those cases.
-          // cf. https://www.ros.org/reps/rep-0117.html
-          tof_msg.range = NAN;
+          uint16_t range_mm = tof_data.RangeMilliMeter;
+          if ((status != 4) && (range_mm != 0) && (range_mm != 8190))
+          {
+            tof_msg.range = (float)range_mm / 1000.0f;
+            // We do not limit this value between tof_min_range and tof_max_range because
+            // https://www.ros.org/reps/rep-0117.html#reference-implementation
+            // accepts the case where the value is not between these limits
+            // and we assume someone wants to know the value even in that case
+          }
+          else
+          {
+            // In our experience, measurement is erroneous when:
+            // - RangeStatus is 4 (Phase Fail)
+            // - RangeMilliMeter is 0 or 8190
+            // Out of range detections are included in those cases, but cannot be distinguished.
+            // So we publish NaN in all of those cases.
+            // cf. https://www.ros.org/reps/rep-0117.html
+            tof_msg.range = NAN;
+          }
+          tof_msg.header.stamp = nh.now();
+          tof_pub.publish(&tof_msg);
         }
-        tof_msg.header.stamp = nh.now();
-        tof_pub.publish(&tof_msg);
       }
     }
   }
