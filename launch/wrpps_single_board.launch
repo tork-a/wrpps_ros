@@ -7,6 +7,9 @@
   <arg name="tof_frame_id" default="tof_frame" />
   <arg name="rate" default="100" />
 
+  <arg name="tof_min_range" default="0.03" />
+  <arg name="tof_max_range" default="2.0" />
+
   <node name="wrpps_single_board_driver"
         pkg="rosserial_python" type="serial_node.py"
         respawn="$(arg rosserial_respawn)"
@@ -16,6 +19,9 @@
       baud: $(arg baud)
       intensity_frame_id: $(arg intensity_frame_id)
       tof_frame_id: $(arg tof_frame_id)
+      tof_field_of_view: 0.44  # 25 degrees
+      tof_min_range: $(arg tof_min_range)
+      tof_max_range: $(arg tof_max_range)
       rate: $(arg rate)
     </rosparam>
   </node>

@@ -162,11 +162,33 @@ void setup()
   char* pp_intensity_frame_id[1];
   pp_intensity_frame_id[0] = intensity_frame_id;
   nh.getParam("~intensity_frame_id", pp_intensity_frame_id, 1);
+  intensity_msg.header.frame_id = intensity_frame_id;
 
   char tof_frame_id[128] = "tof_frame";
   char* pp_tof_frame_id[1];
   pp_tof_frame_id[0] = tof_frame_id;
   nh.getParam("~tof_frame_id", pp_tof_frame_id, 1);
+  tof_msg.header.frame_id =  tof_frame_id;
+
+  tof_msg.field_of_view = 0.44;  // 25 degrees
+  if (!nh.getParam("~tof_field_of_view", &(tof_msg.field_of_view), 1))
+  {
+    nh.logwarn("Perhaps you do not pass float to tof_field_of_view");
+  }
+
+  tof_msg.min_range = 0.03;
+  if (!nh.getParam("~tof_min_range", &(tof_msg.min_range), 1))
+  {
+    nh.logwarn("Perhaps you do not pass float to tof_min_range");
+  }
+
+  tof_msg.max_range = 2.0;
+  if (!nh.getParam("~tof_max_range", &(tof_msg.max_range), 1))
+  {
+    nh.logwarn("Perhaps you do not pass float to tof_max_range");
+  }
+
+  tof_msg.radiation_type = sensor_msgs::Range::INFRARED;
 
   int rate = -1;
   if (!nh.getParam("~rate", &rate, 1))
@@ -188,8 +210,6 @@ void setup()
 
   intensity_sensor.init();
   intensity_sensor.startSensing();
-  // Fill static range message fields
-  intensity_msg.header.frame_id = intensity_frame_id;
 
   if (!tof_sensor.begin())
   {
@@ -211,12 +231,6 @@ void setup()
     nh.logerror("Failed to start measurement in VL53L0X");
     while (1);
   }
-  // Fill static range message fields
-  tof_msg.radiation_type = sensor_msgs::Range::INFRARED;
-  tof_msg.header.frame_id =  tof_frame_id;
-  tof_msg.field_of_view = 0.44;  // 25 degrees
-  tof_msg.min_range = 0.03;
-  tof_msg.max_range = 2.0;
 }
 
 void loop()
