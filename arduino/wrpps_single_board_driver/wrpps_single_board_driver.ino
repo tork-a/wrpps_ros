@@ -132,7 +132,8 @@ public:
   }
 };
 
-#define TOF_PERIOD_MIN 20
+#define TOF_PERIOD_MIN 20  // rate: 50
+#define TOF_PERIOD_MAX 200  // rate: 5
 #define FRAME_ID_MAX_LEN 32  // frame_id must be less than 32 letters, otherwise loop Hz drops
 
 ros::NodeHandle  nh;
@@ -261,6 +262,10 @@ void setup()
   if (tof_period < TOF_PERIOD_MIN)
   {
     tof_period = TOF_PERIOD_MIN;
+  }
+  else if (tof_period > TOF_PERIOD_MAX)
+  {
+    tof_period = TOF_PERIOD_MAX;
   }
 
   Wire.begin();
