@@ -5,7 +5,7 @@
   <arg name="baud" default="115200" />
   <arg name="intensity_frame_id" default="intensity_frame" />
   <arg name="tof_frame_id" default="tof_frame" />
-  <arg name="rate" default="100" />
+  <arg name="rate" default="50" />
 
   <arg name="tof_min_range" default="0.03" />
   <arg name="tof_max_range" default="2.0" />

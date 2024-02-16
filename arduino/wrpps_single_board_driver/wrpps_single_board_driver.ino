@@ -132,6 +132,8 @@ public:
   }
 };
 
+#define TOF_PERIOD_MIN 20
+
 ros::NodeHandle  nh;
 force_proximity_ros::ProximityStamped intensity_msg;
 sensor_msgs::Range tof_msg;
@@ -139,7 +141,6 @@ ros::Publisher intensity_pub("~output/proximity_intensity", &intensity_msg);
 ros::Publisher tof_pub("~output/range_tof", &tof_msg);
 
 bool enable_int_command;
-bool enable_int_state;
 void enableIntCb(const std_msgs::Bool& msg)
 {
   enable_int_command = msg.data;
@@ -156,10 +157,10 @@ void enableTofCb(const std_msgs::Bool& msg)
 ros::Subscriber<std_msgs::Bool> enable_tof_sub("~enable_tof", &enableTofCb);
 // srv is sub + pub on rosserial_arduino, so we do not have to use srv
 
-unsigned long time;
-unsigned long loop_duration;  // loop duration in ms
+unsigned long start_tm;
 VCNL4040 intensity_sensor;
 Adafruit_VL53L0X tof_sensor;
+uint16_t tof_period;  // inter-measurement period of ToF in ms
 
 void setup()
 {
@@ -218,11 +219,15 @@ void setup()
   }
   if (rate <= 0)
   {
-    loop_duration = 0;
+    tof_period = 0;
   }
   else
   {
-    loop_duration = 1000.0f / (float) rate;
+    tof_period = 1000.0f / (float) rate;
+  }
+  if (tof_period < TOF_PERIOD_MIN)
+  {
+    tof_period = TOF_PERIOD_MIN;
   }
 
   Wire.begin();
@@ -230,8 +235,7 @@ void setup()
   // Increasing I2C bus speed to 400kHz makes communication unstable on Arduino Nano Every
 
   intensity_sensor.init();
-  intensity_sensor.startSensing();
-  enable_int_state = true;
+  intensity_sensor.stopSensing();
 
   if (!tof_sensor.begin())
   {
@@ -243,47 +247,33 @@ void setup()
     nh.logerror("Failed to set MeasurementTimingBudget in VL53L0X");
     while (1);
   }
-  if (tof_sensor.setDeviceMode(VL53L0X_DEVICEMODE_CONTINUOUS_RANGING) != VL53L0X_ERROR_NONE)
-  {
-    nh.logerror("Failed to set device mode to continuous ranging in VL53L0X");
-    while (1);
-  }
-  if (tof_sensor.startMeasurement() != VL53L0X_ERROR_NONE)
-  {
-    nh.logerror("Failed to start measurement in VL53L0X");
-    while (1);
-  }
-  enable_tof_state = true;
+  tof_sensor.stopRangeContinuous();
+  // Do not startRangeContinuous here to ensure intensity sensing starts just after ToF sensing
+  // TODO: Fix stopRangeContinuous to notify error
+  // TODO: Try to reset VL53L0X for recovering from momentary I2C error
+  enable_tof_state = false;
+  start_tm = millis();
 }
 
 void loop()
 {
-  time = millis();
-
-  if (enable_int_state != enable_int_command)
-  {
-    enable_int_state = enable_int_command;
-    if (enable_int_command)
-    {
-      intensity_sensor.startSensing();
-    }
-    else
-    {
-      intensity_sensor.stopSensing();
-    }
-  }
-
   if (enable_tof_state != enable_tof_command)
   {
     enable_tof_state = enable_tof_command;
     if (enable_tof_command)
     {
-      if (tof_sensor.startMeasurement() != VL53L0X_ERROR_NONE)
+      if (!tof_sensor.startRangeContinuous(tof_period))
       {
         nh.logerror("Failed to start measurement in VL53L0X");
         enable_tof_state = false;
         // TODO: Try to reset VL53L0X for recovering from momentary I2C error
       }
+      // startRangeContinuous starts continuous timed ranging, not single ranging nor continuous ranging.
+      // Single ranging takes much time because it calls VL53L0X_StartMeasurement every time.
+      // By using continuous timed ranging, we skip that function in each loop.
+      // Also, we can do stable intensity sensing in inter-measurement period of VL53L0X.
+      // On low-power device, intensity value becomes unstable when VL53L0X measurement is conducted at the same time.
+      // Continuous ranging cannot control inter-measurement period, so we selected continuous timed ranging.
     }
     else
     {
@@ -293,17 +283,7 @@ void loop()
     }
   }
 
-  intensity_sensor.getProximity(&(intensity_msg.proximity));
-  intensity_msg.header.stamp = nh.now();
-  intensity_pub.publish(&intensity_msg);
-
-  if (!enable_tof_state)
-  {
-    tof_msg.range = NAN;
-    tof_msg.header.stamp = nh.now();
-    tof_pub.publish(&tof_msg);
-  }
-  else
+  if (enable_tof_state)
   {
     if (!tof_sensor.waitRangeComplete())
     {
@@ -313,7 +293,8 @@ void loop()
     else
     {
       VL53L0X_RangingMeasurementData_t tof_data;
-      if (tof_sensor.getRangingMeasurement(&tof_data) != VL53L0X_ERROR_NONE)
+      if (tof_sensor.getRangingMeasurement(&tof_data) != VL53L0X_ERROR_NONE ||
+          tof_sensor.clearInterruptMask() != VL53L0X_ERROR_NONE)
       {
         nh.logerror("Failed to get measurement data of VL53L0X");
         // TODO: Try to reset VL53L0X for recovering from momentary I2C error
@@ -350,12 +331,34 @@ void loop()
             tof_msg.range = NAN;
           }
           tof_msg.header.stamp = nh.now();
-          tof_pub.publish(&tof_msg);
         }
       }
     }
   }
+  else
+  {
+    while (millis() < start_tm + tof_period);  // Emulate sleep in waitRangeComplete
+    tof_msg.range = NAN;
+    tof_msg.header.stamp = nh.now();
+  }
+  start_tm = millis();
 
-  while (millis() < time + loop_duration); // enforce constant loop time
+  if (enable_int_command)
+  {
+    delayMicroseconds(500);
+    // Interval between ToF and intensity sensing. Without this, intensity value becomes unstable
+    intensity_sensor.startSensing();
+    delay(5);
+    // Interval between startSensing and getProximity. Without this, intensity value becomes 0
+  }
+  intensity_sensor.getProximity(&(intensity_msg.proximity));
+  intensity_sensor.stopSensing();
+  intensity_msg.header.stamp = nh.now();
+
+  // Publishing duration depends on frame_id length,
+  // so we do not publish between ToF and intensity sensing to keep interval between them constant
+  tof_pub.publish(&tof_msg);
+  intensity_pub.publish(&intensity_msg);
+
   nh.spinOnce();
 }
