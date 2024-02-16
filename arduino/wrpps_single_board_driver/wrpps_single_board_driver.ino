@@ -135,12 +135,15 @@ public:
 #define TOF_PERIOD_MIN 20  // rate: 50
 #define TOF_PERIOD_MAX 200  // rate: 5
 #define FRAME_ID_MAX_LEN 32  // frame_id must be less than 32 letters, otherwise loop Hz drops
+#define FRAME_ID_BUF_LEN 64  // Prepare buffer longer than FRAME_ID_MAX_LEN to add some margin against buffer overflow
 
 ros::NodeHandle  nh;
 force_proximity_ros::ProximityStamped intensity_msg;
 sensor_msgs::Range tof_msg;
 ros::Publisher intensity_pub("~output/proximity_intensity", &intensity_msg);
 ros::Publisher tof_pub("~output/range_tof", &tof_msg);
+char intensity_frame_id[FRAME_ID_BUF_LEN] = "intensity_frame";
+char tof_frame_id[FRAME_ID_BUF_LEN] = "tof_frame";
 
 bool enable_int_command;
 void enableIntCb(const std_msgs::Bool& msg)
@@ -204,8 +207,6 @@ void setup()
     nh.spinOnce();
   }
 
-  char intensity_frame_id[128] = "intensity_frame";
-  // I'm not sure why, but using FRAME_ID_MAX_LEN instead of 128 causes strange behavior of getParam
   char* pp_intensity_frame_id[1];
   pp_intensity_frame_id[0] = intensity_frame_id;
   nh.getParam("~intensity_frame_id", pp_intensity_frame_id, 1);
@@ -215,8 +216,6 @@ void setup()
   }
   intensity_msg.header.frame_id = intensity_frame_id;
 
-  char tof_frame_id[128] = "tof_frame";
-  // I'm not sure why, but using FRAME_ID_MAX_LEN instead of 128 causes strange behavior of getParam
   char* pp_tof_frame_id[1];
   pp_tof_frame_id[0] = tof_frame_id;
   nh.getParam("~tof_frame_id", pp_tof_frame_id, 1);
@@ -224,7 +223,7 @@ void setup()
   {
     while (1);
   }
-  tof_msg.header.frame_id =  tof_frame_id;
+  tof_msg.header.frame_id = tof_frame_id;
 
   tof_msg.field_of_view = 0.44;  // 25 degrees
   if (!nh.getParam("~tof_field_of_view", &(tof_msg.field_of_view), 1))
