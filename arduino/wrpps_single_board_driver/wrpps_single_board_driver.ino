@@ -133,6 +133,7 @@ public:
 };
 
 #define TOF_PERIOD_MIN 20
+#define FRAME_ID_MAX_LEN 32  // frame_id must be less than 32 letters, otherwise loop Hz drops
 
 ros::NodeHandle  nh;
 force_proximity_ros::ProximityStamped intensity_msg;
@@ -162,6 +163,28 @@ VCNL4040 intensity_sensor;
 Adafruit_VL53L0X tof_sensor;
 uint16_t tof_period;  // inter-measurement period of ToF in ms
 
+size_t limited_strlen(const char* str, size_t limit)
+{
+  size_t i = 0;
+  while (i < limit && (*str++))
+  {
+    i++;
+  }
+  return i;
+}
+
+bool check_frame_id_len(const char* frame_id, const char* frame_id_name)
+{
+  if (limited_strlen(frame_id, FRAME_ID_MAX_LEN) == FRAME_ID_MAX_LEN)
+  {
+    char buf[128];
+    snprintf(buf, 128, "%s is not less than %d characters", frame_id_name, FRAME_ID_MAX_LEN);
+    nh.logerror(buf);
+    return false;
+  }
+  return true;
+}
+
 void setup()
 {
   nh.getHardware()->setBaud(115200);
@@ -181,15 +204,25 @@ void setup()
   }
 
   char intensity_frame_id[128] = "intensity_frame";
+  // I'm not sure why, but using FRAME_ID_MAX_LEN instead of 128 causes strange behavior of getParam
   char* pp_intensity_frame_id[1];
   pp_intensity_frame_id[0] = intensity_frame_id;
   nh.getParam("~intensity_frame_id", pp_intensity_frame_id, 1);
+  if (!check_frame_id_len(intensity_frame_id, "intensity_frame_id"))
+  {
+    while (1);
+  }
   intensity_msg.header.frame_id = intensity_frame_id;
 
   char tof_frame_id[128] = "tof_frame";
+  // I'm not sure why, but using FRAME_ID_MAX_LEN instead of 128 causes strange behavior of getParam
   char* pp_tof_frame_id[1];
   pp_tof_frame_id[0] = tof_frame_id;
   nh.getParam("~tof_frame_id", pp_tof_frame_id, 1);
+  if (!check_frame_id_len(tof_frame_id, "tof_frame_id"))
+  {
+    while (1);
+  }
   tof_msg.header.frame_id =  tof_frame_id;
 
   tof_msg.field_of_view = 0.44;  // 25 degrees
