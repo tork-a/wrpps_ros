@@ -74,7 +74,11 @@ class IntensityProxCalibrator(object):
         else:
             self.i_raw = msg.proximity.proximity
         if self.i_init_value is None:
-            rospy.logwarn_throttle(10, 'Init prox is not set, so skipping')
+            rospy.logwarn_throttle(
+                10,
+                '[{}] Init prox is not set, so skipping'.format(
+                    rospy.get_name())
+            )
             return
         self.i_diff_from_init = self.i_raw - self.i_init_value
         self.i_diff_queue.append(self.i_diff_from_init)
@@ -97,7 +101,11 @@ class IntensityProxCalibrator(object):
                 self.is_latest_rng_published = True
 
         if self.i_refl_param is None:
-            rospy.logwarn_throttle(10, 'Refl. param is not calculated yet')
+            rospy.logwarn_throttle(
+                10,
+                '[{}] Refl. param is not calculated yet'.format(
+                    rospy.get_name())
+            )
         else:
             if self.i_diff_from_init > 0:
                 diff_plus = self.i_diff_from_init
@@ -170,7 +178,10 @@ class IntensityProxCalibrator(object):
         self.is_latest_rng_published = False
         if self.i_diff_from_init is None:
             rospy.logwarn_throttle(
-                10, 'Prox diff_from_init is not set, so skipping')
+                10,
+                '[{}] Prox diff_from_init is not set, so skipping'.format(
+                    rospy.get_name())
+            )
             return
         if self.i_height_from_rng is None:
             self.i_height_from_rng = 0.0
