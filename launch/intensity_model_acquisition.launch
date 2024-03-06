@@ -1,0 +1,48 @@
+<launch>
+
+  <arg name="input_intensity" />
+  <arg name="input_range" />
+
+  <arg name="range_lpf_coeff" default="0.3" />
+  <arg name="range_lpf_reset_on_invalid_input" default="true" />
+
+  <arg name="i_valid_min" default="20" />
+  <arg name="i_valid_max" default="1000" />
+  <arg name="i_valid_max_dist" default="0.06" />
+  <arg name="i_height_from_rng" default="0.0" />
+  <arg name="i_queue_size_for_rng" default="2" />
+  <arg name="rng_valid_min" default="0.045" />
+  <arg name="rng_delay_from_i" default="0.0" />
+  <arg name="rng_tm_tolerance" default="0.02" />
+  <arg name="use_i_average" default="true" />
+  <arg name="i_field_of_view" default="0.44" />
+  <arg name="i_min_range" default="0.0" />
+  <arg name="i_max_range" default="0.2" />
+
+  <node name="range_low_pass_filter" pkg="wrpps_ros" type="range_low_pass_filter.py" output="screen">
+    <remap from="~input" to="$(arg input_range)" />
+    <rosparam subst_value="true">
+      input_coeff: $(arg range_lpf_coeff)
+      reset_on_invalid_input: $(arg range_lpf_reset_on_invalid_input)
+    </rosparam>
+  </node>
+  <node name="intensity_model_acquisition" pkg="wrpps_ros" type="intensity_model_acquisition.py" output="screen">
+    <remap from="~input/intensity" to="$(arg input_intensity)" />
+    <remap from="~input/range" to="range_low_pass_filter/output" />
+    <rosparam subst_value="true">
+      i_valid_min: $(arg i_valid_min)
+      i_valid_max: $(arg i_valid_max)
+      i_valid_max_dist: $(arg i_valid_max_dist)
+      i_height_from_rng: $(arg i_height_from_rng)
+      i_queue_size_for_rng: $(arg i_queue_size_for_rng)
+      rng_valid_min: $(arg rng_valid_min)
+      rng_delay_from_i: $(arg rng_delay_from_i)
+      rng_tm_tolerance: $(arg rng_tm_tolerance)
+      use_i_average: $(arg use_i_average)
+      i_field_of_view: $(arg i_field_of_view)
+      i_min_range: $(arg i_min_range)
+      i_max_range: $(arg i_max_range)
+    </rosparam>
+  </node>
+
+</launch>

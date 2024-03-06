@@ -10,7 +10,7 @@ from std_srvs.srv import TriggerResponse
 import rospy
 
 
-class IntensityProxCalibrator(object):
+class IntensityModelAcquisition(object):
 
     def __init__(self):
         self.i_refl_param = rospy.get_param('~i_reflectance_param', None)
@@ -215,6 +215,6 @@ class IntensityProxCalibrator(object):
 
 
 if __name__ == '__main__':
-    rospy.init_node('intensity_prox_calibrator')
-    app = IntensityProxCalibrator()
+    rospy.init_node('intensity_model_acquisition')
+    app = IntensityModelAcquisition()
     rospy.spin()
