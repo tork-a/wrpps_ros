@@ -1,10 +1,12 @@
 <launch>
 
+  <arg name="sensor_name" default="wrpps_single_board" />
+
   <arg name="rosserial_respawn" default="false" />
   <arg name="port" default="/dev/ttyACM0" />
   <arg name="baud" default="115200" />
-  <arg name="intensity_frame_id" default="intensity_frame" />
-  <arg name="tof_frame_id" default="tof_frame" />
+  <arg name="intensity_frame_id" default="$(arg sensor_name)_intensity_frame" />
+  <arg name="tof_frame_id" default="$(arg sensor_name)_tof_frame" />
   <arg name="rate" default="50" />
 
   <arg name="tof_min_range" default="0.03" />
@@ -12,26 +14,42 @@
 
   <arg name="tof_lpf_coeff" default="0.3" />  <!-- TODO: Tune this to $(arg rate) -->
 
-  <node name="wrpps_single_board_driver"
-        pkg="rosserial_python" type="serial_node.py"
-        respawn="$(arg rosserial_respawn)"
-        output="screen">
-    <rosparam subst_value="true">
-      port: $(arg port)
-      baud: $(arg baud)
-      intensity_frame_id: $(arg intensity_frame_id)
-      tof_frame_id: $(arg tof_frame_id)
-      tof_field_of_view: 0.44  # 25 degrees
-      tof_min_range: $(arg tof_min_range)
-      tof_max_range: $(arg tof_max_range)
-      rate: $(arg rate)
-    </rosparam>
-  </node>
+  <group ns="$(arg sensor_name)">
 
-  <include file="$(find wrpps_ros)/launch/intensity_model_acquisition.launch">
-    <arg name="input_intensity" value="wrpps_single_board_driver/output/proximity_intensity" />
-    <arg name="input_range" value="wrpps_single_board_driver/output/range_tof" />
-    <arg name="range_lpf_coeff" value="$(arg tof_lpf_coeff)" />
-  </include>
+    <node name="driver"
+          pkg="rosserial_python" type="serial_node.py"
+          respawn="$(arg rosserial_respawn)"
+          output="screen">
+      <remap from="~output/proximity_intensity" to="~output/proximity_intensity/raw" />
+      <remap from="~output/range_tof" to="~output/range_tof/raw" />
+      <rosparam subst_value="true">
+        port: $(arg port)
+        baud: $(arg baud)
+        intensity_frame_id: i  # Short frame_id acceptable to Arduino
+        tof_frame_id: t  # Short frame_id acceptable to Arduino
+        tof_field_of_view: 0.44  # 25 degrees
+        tof_min_range: $(arg tof_min_range)
+        tof_max_range: $(arg tof_max_range)
+        rate: $(arg rate)
+      </rosparam>
+    </node>
+
+    <!-- Change frame_id to formal one -->
+    <node name="change_intensity_frame_id"
+          pkg="topic_tools" type="transform"
+          args="driver/output/proximity_intensity/raw driver/output/proximity_intensity force_proximity_ros/ProximityStamped 'force_proximity_ros.msg.ProximityStamped(header=std_msgs.msg.Header(seq=m.header.seq, stamp=m.header.stamp, frame_id=&quot;$(arg intensity_frame_id)&quot;), proximity=m.proximity)' --import force_proximity_ros std_msgs --wait-for-start"
+          respawn="true" />
+    <node name="change_tof_frame_id"
+          pkg="topic_tools" type="transform"
+          args="driver/output/range_tof/raw driver/output/range_tof sensor_msgs/Range 'sensor_msgs.msg.Range(header=std_msgs.msg.Header(seq=m.header.seq, stamp=m.header.stamp, frame_id=&quot;$(arg tof_frame_id)&quot;), radiation_type=m.radiation_type, field_of_view=m.field_of_view, min_range=m.min_range, max_range=m.max_range, range=m.range)' --import sensor_msgs std_msgs --wait-for-start"
+          respawn="true" />
+
+    <include file="$(find wrpps_ros)/launch/intensity_model_acquisition.launch">
+      <arg name="input_intensity" value="driver/output/proximity_intensity" />
+      <arg name="input_range" value="driver/output/range_tof" />
+      <arg name="range_lpf_coeff" value="$(arg tof_lpf_coeff)" />
+    </include>
+
+  </group>
 
 </launch>
