@@ -2,8 +2,8 @@
 Changelog for package wrpps_ros
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.0.0 (2024-12-18)
+------------------
 * Remove unnecessary catkin_python_setup and setup.py
   See https://github.com/jsk-ros-pkg/jsk_recognition/pull/2851
 * Add missing dependency
