@@ -170,7 +170,7 @@ public:
   */
 };
 
-#define TOF_PERIOD_MIN 20  // rate: 50
+#define TOF_PERIOD_MIN 25  // rate: 40
 #define TOF_PERIOD_MAX 200  // rate: 5
 
 ros::NodeHandle nh;
