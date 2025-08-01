@@ -34,11 +34,10 @@
 #include <stdio.h>
 #include <Wire.h>
 #include <ros.h>
-#include <force_proximity_ros/Proximity.h>
-#include <force_proximity_ros/ProximityStamped.h>
-#include <sensor_msgs/Range.h>
 #include <std_msgs/Bool.h>
 #include <std_msgs/Empty.h>
+#include <std_msgs/Float32.h>
+#include <std_msgs/UInt32.h>
 #include "Adafruit_VL53L0X.h"  // Search and install Adafruit_VL53L0X on library manager of Arduino IDE
 // https://github.com/adafruit/Adafruit_VL53L0X
 
@@ -56,6 +55,7 @@ public:
     PS_CONF3 = 0x04,
     PS_DATA_L = 0x08,
   };
+  /*
   // Sensitivity of touch/release detection, values closer to zero increase sensitivity
   signed int sensitivity_;
   // exponential average weight parameter / cut-off frequency for high-pass filter
@@ -65,13 +65,16 @@ public:
   bool is_average_init_;
   // FA-II value;
   signed int fa2_;
+  */
 
   VCNL4040()
+  /*
     : sensitivity_(1000)
     , ea_(0.3)
     , average_value_(0)
     , is_average_init_(false)
     , fa2_(0)
+  */
   {
   }
 
@@ -135,6 +138,7 @@ public:
     return (readFromCommandRegister(PS_DATA_L));
   }
 
+  /*
   void getProximity(force_proximity_ros::Proximity* prox)
   {
     unsigned int raw = getRawProximity();
@@ -163,20 +167,17 @@ public:
     }
     average_value_ = ea_ * raw + (1 - ea_) * average_value_;
   }
+  */
 };
 
 #define TOF_PERIOD_MIN 20  // rate: 50
 #define TOF_PERIOD_MAX 200  // rate: 5
-#define FRAME_ID_MAX_LEN 32  // frame_id must be less than 32 letters, otherwise loop Hz drops
-#define FRAME_ID_BUF_LEN 64  // Prepare buffer longer than FRAME_ID_MAX_LEN to add some margin against buffer overflow
 
-ros::NodeHandle  nh;
-force_proximity_ros::ProximityStamped intensity_msg;
-sensor_msgs::Range tof_msg;
-ros::Publisher intensity_pub("~output/proximity_intensity", &intensity_msg);
-ros::Publisher tof_pub("~output/range_tof", &tof_msg);
-char intensity_frame_id[FRAME_ID_BUF_LEN] = "intensity_frame";
-char tof_frame_id[FRAME_ID_BUF_LEN] = "tof_frame";
+ros::NodeHandle nh;
+std_msgs::UInt32 intensity_msg;
+std_msgs::Float32 tof_msg;
+ros::Publisher intensity_pub("~output/proximity_intensity/raw", &intensity_msg);
+ros::Publisher tof_pub("~output/range_tof/raw", &tof_msg);
 
 std_msgs::Empty got_en_msg;
 ros::Publisher got_en_pub("~got_enabling_command", &got_en_msg);
@@ -211,28 +212,6 @@ VCNL4040 intensity_sensor;
 Adafruit_VL53L0X tof_sensor;
 uint16_t tof_period;  // inter-measurement period of ToF in ms
 
-size_t limited_strlen(const char* str, size_t limit)
-{
-  size_t i = 0;
-  while (i < limit && (*str++))
-  {
-    i++;
-  }
-  return i;
-}
-
-bool check_frame_id_len(const char* frame_id, const char* frame_id_name)
-{
-  if (limited_strlen(frame_id, FRAME_ID_MAX_LEN) == FRAME_ID_MAX_LEN)
-  {
-    char buf[128];
-    snprintf(buf, 128, "%s is not less than %d characters", frame_id_name, FRAME_ID_MAX_LEN);
-    nh.logerror(buf);
-    return false;
-  }
-  return true;
-}
-
 void setup()
 {
   nh.getHardware()->setBaud(115200);
@@ -251,44 +230,6 @@ void setup()
   {
     nh.spinOnce();
   }
-
-  char* pp_intensity_frame_id[1];
-  pp_intensity_frame_id[0] = intensity_frame_id;
-  nh.getParam("~intensity_frame_id", pp_intensity_frame_id, 1);
-  if (!check_frame_id_len(intensity_frame_id, "intensity_frame_id"))
-  {
-    while (1);
-  }
-  intensity_msg.header.frame_id = intensity_frame_id;
-
-  char* pp_tof_frame_id[1];
-  pp_tof_frame_id[0] = tof_frame_id;
-  nh.getParam("~tof_frame_id", pp_tof_frame_id, 1);
-  if (!check_frame_id_len(tof_frame_id, "tof_frame_id"))
-  {
-    while (1);
-  }
-  tof_msg.header.frame_id = tof_frame_id;
-
-  tof_msg.field_of_view = 0.44;  // 25 degrees
-  if (!nh.getParam("~tof_field_of_view", &(tof_msg.field_of_view), 1))
-  {
-    nh.logwarn("Perhaps you do not pass float to tof_field_of_view");
-  }
-
-  tof_msg.min_range = 0.03;
-  if (!nh.getParam("~tof_min_range", &(tof_msg.min_range), 1))
-  {
-    nh.logwarn("Perhaps you do not pass float to tof_min_range");
-  }
-
-  tof_msg.max_range = 2.0;
-  if (!nh.getParam("~tof_max_range", &(tof_msg.max_range), 1))
-  {
-    nh.logwarn("Perhaps you do not pass float to tof_max_range");
-  }
-
-  tof_msg.radiation_type = sensor_msgs::Range::INFRARED;
 
   int rate = -1;
   if (!nh.getParam("~rate", &rate, 1))
@@ -396,7 +337,7 @@ void loop()
           uint16_t range_mm = tof_data.RangeMilliMeter;
           if ((status != 4) && (range_mm != 0) && (range_mm != 8190))
           {
-            tof_msg.range = (float)range_mm / 1000.0f;
+            tof_msg.data = (float)range_mm / 1000.0f;
             // We do not limit this value between tof_min_range and tof_max_range because
             // https://www.ros.org/reps/rep-0117.html#reference-implementation
             // accepts the case where the value is not between these limits
@@ -410,9 +351,8 @@ void loop()
             // Out of range detections are included in those cases, but cannot be distinguished.
             // So we publish NaN in all of those cases.
             // cf. https://www.ros.org/reps/rep-0117.html
-            tof_msg.range = NAN;
+            tof_msg.data = NAN;
           }
-          tof_msg.header.stamp = nh.now();
         }
       }
     }
@@ -420,9 +360,9 @@ void loop()
   else
   {
     while (millis() < start_tm + tof_period);  // Emulate sleep in waitRangeComplete
-    tof_msg.range = NAN;
-    tof_msg.header.stamp = nh.now();
+    tof_msg.data = NAN;
   }
+  tof_pub.publish(&tof_msg);
   start_tm = millis();
 
   if (enable_int_command)
@@ -433,13 +373,8 @@ void loop()
     delay(5);
     // Interval between startSensing and getProximity. Without this, intensity value becomes 0
   }
-  intensity_sensor.getProximity(&(intensity_msg.proximity));
+  intensity_msg.data = intensity_sensor.getRawProximity();
   intensity_sensor.stopSensing();
-  intensity_msg.header.stamp = nh.now();
-
-  // Publishing duration depends on frame_id length,
-  // so we do not publish between ToF and intensity sensing to keep interval between them constant
-  tof_pub.publish(&tof_msg);
   intensity_pub.publish(&intensity_msg);
 
   nh.spinOnce();
