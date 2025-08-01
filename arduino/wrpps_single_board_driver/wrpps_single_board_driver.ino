@@ -38,6 +38,7 @@
 #include <force_proximity_ros/ProximityStamped.h>
 #include <sensor_msgs/Range.h>
 #include <std_msgs/Bool.h>
+#include <std_msgs/Empty.h>
 #include "Adafruit_VL53L0X.h"  // Search and install Adafruit_VL53L0X on library manager of Arduino IDE
 // https://github.com/adafruit/Adafruit_VL53L0X
 
@@ -177,22 +178,33 @@ ros::Publisher tof_pub("~output/range_tof", &tof_msg);
 char intensity_frame_id[FRAME_ID_BUF_LEN] = "intensity_frame";
 char tof_frame_id[FRAME_ID_BUF_LEN] = "tof_frame";
 
+std_msgs::Empty got_en_msg;
+ros::Publisher got_en_pub("~got_enabling_command", &got_en_msg);
+
 bool enable_int_command;
 void enableIntCb(const std_msgs::Bool& msg)
 {
   enable_int_command = msg.data;
+  got_en_pub.publish(&got_en_msg);
 }
 ros::Subscriber<std_msgs::Bool> enable_int_sub("~enable_intensity", &enableIntCb);
-// srv is sub + pub on rosserial_arduino, so we do not have to use srv
+// Native srv server of rosserial_arduino causes "Lost sync with device, restarting..." when it is called repeatedly,
+// so we instead use sub to get request and pub to return response.
+// Multi request subs share single response pub to avoid "Lost sync with device, restarting..." by reducing pub number,
+// so you should not publish to different request sub before getting response from sub you previously published to
 
 bool enable_tof_command;
 bool enable_tof_state;
 void enableTofCb(const std_msgs::Bool& msg)
 {
   enable_tof_command = msg.data;
+  got_en_pub.publish(&got_en_msg);
 }
 ros::Subscriber<std_msgs::Bool> enable_tof_sub("~enable_tof", &enableTofCb);
-// srv is sub + pub on rosserial_arduino, so we do not have to use srv
+// Native srv server of rosserial_arduino causes "Lost sync with device, restarting..." when it is called repeatedly,
+// so we instead use sub to get request and pub to return response.
+// Multi request subs share single response pub to avoid "Lost sync with device, restarting..." by reducing pub number,
+// so you should not publish to different request sub before getting response from sub you previously published to
 
 unsigned long start_tm;
 VCNL4040 intensity_sensor;
@@ -230,6 +242,7 @@ void setup()
   nh.initNode();
   nh.advertise(intensity_pub);
   nh.advertise(tof_pub);
+  nh.advertise(got_en_pub);
   enable_int_command = true;
   nh.subscribe(enable_int_sub);
   enable_tof_command = true;

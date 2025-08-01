@@ -34,6 +34,20 @@
       </rosparam>
     </node>
 
+    <!-- Wrap some topic interfaces with service interfaces -->
+    <!-- Use service interfaces in your application -->
+    <node name="sensor_enabling_service_server"
+          pkg="wrpps_ros" type="sensor_enabling_service_server.py"
+          respawn="$(arg rosserial_respawn)"
+          output="screen">
+      <rosparam subst_value="true">
+        sensor_enabling_topics:
+          - driver/enable_intensity
+          - driver/enable_tof
+        got_enabling_command_topic: driver/got_enabling_command
+      </rosparam>
+    </node>
+
     <!-- Change frame_id to formal one -->
     <node name="change_intensity_frame_id"
           pkg="topic_tools" type="transform"
