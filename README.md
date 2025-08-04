@@ -84,14 +84,15 @@ chmod a+x arduino-ide_2.3.6_Linux_64bit.AppImage
 ./arduino-ide_2.3.6_Linux_64bit.AppImage
 ```
 
-Search and install "Adafruit_VL53L0X" on Library Manager of Arduino IDE.
+Search and install **Adafruit_VL53L0X** in **Library Manager** of Arduino IDE.
 
-> If you use R4 type Arduino boards, install Board Package.
-> 
-> - [Getting Started with Arduino UNO R4 Minima - ARDUINO DOCS](https://docs.arduino.cc/tutorials/uno-r4-minima/minima-getting-started/)
->   - https://docs.arduino.cc/tutorials/uno-r4-minima/minima-getting-started/
+If you use a R4 type Arduino board, install Board Package.
 
-Ctrl-C to quit Arduino IDE for now.
+- [Getting Started with Arduino UNO R4 Minima - ARDUINO DOCS](https://docs.arduino.cc/tutorials/uno-r4-minima/minima-getting-started/)
+  - https://docs.arduino.cc/tutorials/uno-r4-minima/minima-getting-started/
+
+Close Arduino IDE window or type Ctrl-C on the terminal to quit for now.
+
 
 ### Run Arduino Post Install Script
 
@@ -105,6 +106,7 @@ cd ~/Download
 chmod a+x post_install.sh
 sudo ./post_install.sh 
 ```
+
 
 ### Clone and Build wrpps_ros and FA-I-sensor packages
 
@@ -120,6 +122,7 @@ catkin build
 source ~/wrpps_ws/devel/setup.bash
 ```
 
+
 ### Make rosserial Arduino Libraries
 
 ``` bash
@@ -131,6 +134,7 @@ cd ~/Arduino/libraries
 rm -rf ros_lib
 rosrun rosserial_arduino make_libraries.py .
 ```
+
 
 ### Upload WrPPS Sketch to Arduino
 
@@ -156,12 +160,13 @@ Quit Arduino IDE.
 
 ### Using Arduino to read WrPPS Single Board
 
+To start sensing and publishing ROS topics, run the following command.
 
 ```bash
 roslaunch wrpps_ros wrpps_single_board.launch
 ```
 
-If the connection port is not the default value of `/dev/ttyACM0`, argue the launch option and run it.
+If the serial port for your Arduino is not the default value: `/dev/ttyACM0`, run it with `port` launch option.
 
 ```bash
 roslaunch wrpps_ros wrpps_single_board.launch port:=/dev/ttyUSB0
