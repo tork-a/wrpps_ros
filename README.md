@@ -1,7 +1,10 @@
 # wrpps_ros
 
 ROS driver package for Wide-range Precise Proximity Sensor (WrPPS) board.  
-Details of WrPPS are described in our paper: https://ieeexplore.ieee.org/document/9144379
+
+The feature of `wrpps_ros` is that by combining a ToF range sensor and a proximity sensor, it is possible to estimate the proximity distance in a nearby region outside the range of the ToF sensor.
+
+Details of WrPPS are described in a paper: https://ieeexplore.ieee.org/document/9144379
 
 Japanese papers:
 - https://www.jstage.jst.go.jp/article/jsmermd/2019/0/2019_2P1-H08/_article/-char/ja/
@@ -12,7 +15,7 @@ Japanese papers:
 
 ### Hardware
 
-WrPPS Single Board has 2 type of proximity sensors.
+WrPPS Single Board has 2 type of proximity sensors, a ToF range sensor and a proximity and amibent light sensor.
 
 ![WrPPS Single Board v1.1 Dimensions](doc/images/wrpps-single-board_dimensions_small.png)
 
@@ -55,6 +58,14 @@ The following models of the Arduino series have been confirmed to work.
 
 - Arduino UNO R4 MINIMA
 - Arduino nano Every
+
+<br>
+
+
+## System Requirement
+
+- Ubuntu 20.04
+- ROS Noetic
 
 <br>
 
@@ -122,6 +133,27 @@ catkin build
 source ~/wrpps_ws/devel/setup.bash
 ```
 
+#### ROS Environment Settings (Optional)
+
+If you are constantly using `wrpps_ros`, it is useful to add preferences to the `.bashrc` file so that the path to the workspace containing `wrpps_ros` is set when the terminal is started.
+
+The following is an example of opening and editing `.bashrc` file with the nano editor. But you can use any text editor.
+
+``` bash
+nano ~/.bashrc
+```
+
+Add the following lines to the end of the `.bashrc` file, save it with Ctrl-S, then use Ctrl-X to exit the nano editor.
+
+``` bash
+# ROS Environment
+source /opt/ros/noetic/setup.bash
+source ~/wrpps_ros/devel/setup.bash
+env | grep ROS
+```
+
+This modified `.bashrc` file will set up environments for using ROS and the workspace that includes `wrpps_ros` every time you start the terminal from the next time.
+
 
 ### Make rosserial Arduino Libraries
 
@@ -155,6 +187,8 @@ cd ~/Download
 
 Quit Arduino IDE.
 
+<br>
+
 
 ## Usage
 
@@ -163,6 +197,7 @@ Quit Arduino IDE.
 To start sensing and publishing ROS topics, run the following command.
 
 ```bash
+source ~/wrpps_ws/devel/setup.bash
 roslaunch wrpps_ros wrpps_single_board.launch
 ```
 
@@ -204,27 +239,312 @@ roslaunch wrpps_ros wrpps_single_board.launch port:=/dev/ttyUSB0
   - default="2.0"
 -->
 
-#### Publishing topics
+#### Publishing Topics
 
 - `$(arg sensor_name)/driver/output/proximity_intensity` (`force_proximity_ros/ProximityStamped`)
-
-  Intensity sensor value.
-
+  - Intensity sensor value.
 - `$(arg sensor_name)/driver/output/range_tof` (`sensor_msgs/Range`)
-
-  ToF sensor value.
-
+  - ToF sensor value.
 - `$(arg sensor_name)/intensity_model_acquisition/output/range_intensity` (`sensor_msgs/Range`)
-
-  Range value converted from the intensity sensor. To get this value, call `set_init_intensity` service first.
-
+  - Range value converted from the intensity sensor. To get this value, call `set_init_intensity` service first.
 - `$(arg sensor_name)/intensity_model_acquisition/output/range_combined` (`sensor_msgs/Range`)
+  - Range value generated with the combination of the intensity-based range value and the ToF range value (the close-range value comes from the intensity value and the long-range value comes from the ToF value).
 
-  Range value generated with the combination of the intensity-based range value and the ToF range value (the close-range value comes from the intensity value and the long-range value comes from the ToF value).
+#### ROS Topic Examples
 
-#### Services
+**Terminal-1**
+``` bash
+source ~/wrpps_ws/devel/setup.bash
+roslaunch wrpps_ros wrpps_single_board.launch
+```
+
+**Terminal-2**
+``` bash
+source ~/wrpps_ws/devel/setup.bash
+rostopic echo /wrpps_single_board/driver/output/range_tof
+```
+
+``` bash
+$ rostopic echo /wrpps_single_board/driver/output/range_tof
+header: 
+  seq: 1015
+  stamp: 
+    secs: 1754966728
+    nsecs: 463486433
+  frame_id: "wrpps_single_board_tof_frame"
+radiation_type: 1
+field_of_view: 0.4399999976158142
+min_range: 0.029999999329447746
+max_range: 2.0
+range: 8.190999984741211
+---
+
+:
+:
+:
+
+---
+header: 
+  seq: 1223
+  stamp: 
+    secs: 1754966733
+    nsecs: 501786708
+  frame_id: "wrpps_single_board_tof_frame"
+radiation_type: 1
+field_of_view: 0.4399999976158142
+min_range: 0.029999999329447746
+max_range: 2.0
+range: 0.07100000232458115
+---
+header: 
+  seq: 1224
+  stamp: 
+    secs: 1754966733
+    nsecs: 526211977
+  frame_id: "wrpps_single_board_tof_frame"
+radiation_type: 1
+field_of_view: 0.4399999976158142
+min_range: 0.029999999329447746
+max_range: 2.0
+range: 0.07000000029802322
+---
+header: 
+  seq: 1225
+  stamp: 
+    secs: 1754966733
+    nsecs: 550466775
+  frame_id: "wrpps_single_board_tof_frame"
+radiation_type: 1
+field_of_view: 0.4399999976158142
+min_range: 0.029999999329447746
+max_range: 2.0
+range: 0.0689999982714653
+---
+
+:
+:
+:
+```
+
+Type Ctrl-C to quit.
+
+
+**Terminal-2**
+``` bash
+rostopic echo /wrpps_single_board/driver/output/proximity_intetof
+```
+
+``` bash
+$ rostopic echo /wrpps_single_board/driver/output/proximity_intensity
+header: 
+  seq: 266
+  stamp: 
+    secs: 1754967229
+    nsecs: 459060668
+  frame_id: "wrpps_single_board_intensity_frame"
+proximity: 
+  proximity: 5
+  average: 4
+  fa2: -1
+  fa2derivative: 0
+  mode: "0"
+---
+
+:
+:
+:
+
+---
+header: 
+  seq: 440
+  stamp: 
+    secs: 1754967233
+    nsecs: 678566694
+  frame_id: "wrpps_single_board_intensity_frame"
+proximity: 
+  proximity: 361
+  average: 397
+  fa2: 36
+  fa2derivative: 32
+  mode: "0"
+---
+header: 
+  seq: 441
+  stamp: 
+    secs: 1754967233
+    nsecs: 702883005
+  frame_id: "wrpps_single_board_intensity_frame"
+proximity: 
+  proximity: 316
+  average: 386
+  fa2: 70
+  fa2derivative: 34
+  mode: "0"
+---
+header: 
+  seq: 442
+  stamp: 
+    secs: 1754967233
+    nsecs: 727200746
+  frame_id: "wrpps_single_board_intensity_frame"
+proximity: 
+  proximity: 266
+  average: 365
+  fa2: 99
+  fa2derivative: 29
+  mode: "0"
+---
+header: 
+  seq: 443
+  stamp: 
+    secs: 1754967233
+    nsecs: 750994205
+  frame_id: "wrpps_single_board_intensity_frame"
+proximity: 
+  proximity: 220
+  average: 335
+  fa2: 115
+  fa2derivative: 16
+  mode: "0"
+---
+
+:
+:
+:
+```
+
+
+### ROS Services of `wrpps_ros`
+
+#### Set the Initial Intensity Value for `Range` Conversion
 
 - `$(arg sensor_name)/intensity_model_acquisition/set_init_intensity` (`std_srvs/Empty`)
+  - Get initial value of the intensity sensor. Call this service when there is no object in front of the board. After calling this service, calibration of the intensity sensor with the ToF sensor starts. Once the calibration is completed, the range value converted from the intensity sensor becomes meaningful.
 
-  Get initial value of the intensity sensor. Call this service when there is no object in front of the board. After calling this service, calibration of the intensity sensor with the ToF sensor starts. Once the calibration is completed, the range value converted from the intensity sensor becomes meaningful.
+An Example is shown below to set the initial Intensity value for `Range` conversion from the intensicty sensor data.
 
+**Terminal-1**
+``` bash
+source ~/wrpps_ws/devel/setup.bash
+roslaunch wrpps_ros wrpps_single_board.launch
+```
+
+**Terminal-2**
+``` bash
+source ~/wrpps_ws/devel/setup.bash
+$ rosservice call /wrpps_single_board/intensity_model_acquisition/set_init_intensity 
+success: True
+message: ''
+$ rostopic echo /wrpps_single_board/intensity_model_acquisition/output/range_combined 
+header: 
+  seq: 1
+  stamp: 
+    secs: 1754978543
+    nsecs: 564466476
+  frame_id: "wrpps_single_board_intensity_frame"
+radiation_type: 1
+field_of_view: 0.4399999976158142
+min_range: 0.0
+max_range: 2.0
+range: nan
+---
+
+:
+:
+:
+
+---
+header: 
+  seq: 336
+  stamp: 
+    secs: 1754978551
+    nsecs: 683211565
+  frame_id: "wrpps_single_board_intensity_frame"
+radiation_type: 1
+field_of_view: 0.4399999976158142
+min_range: 0.0
+max_range: 2.0
+range: 0.010047607123851776
+---
+header: 
+  seq: 337
+  stamp: 
+    secs: 1754978551
+    nsecs: 707510232
+  frame_id: "wrpps_single_board_intensity_frame"
+radiation_type: 1
+field_of_view: 0.4399999976158142
+min_range: 0.0
+max_range: 2.0
+range: 0.009967952966690063
+---
+header: 
+  seq: 338
+  stamp: 
+    secs: 1754978551
+    nsecs: 732238531
+  frame_id: "wrpps_single_board_intensity_frame"
+radiation_type: 1
+field_of_view: 0.4399999976158142
+min_range: 0.0
+max_range: 2.0
+range: 0.009987088851630688
+---
+header: 
+  seq: 339
+  stamp: 
+    secs: 1754978551
+    nsecs: 756275892
+  frame_id: "wrpps_single_board_intensity_frame"
+radiation_type: 1
+field_of_view: 0.4399999976158142
+min_range: 0.0
+max_range: 2.0
+range: 0.009863249026238918
+---
+
+:
+:
+:
+```
+
+#### Enable Sensors
+
+Wrap sensor enabling topic interfaces with service interfaces.
+Users should use service interfaces for their application.
+
+Message published to the topic interface is sometimes lost in rosserial communication.
+The service interface can detect this and resend the message.
+Ideally, native service server of rosserial_arduino should work,
+but this causes "Lost sync with device, restarting..." when it is called repeatedly
+
+- `$(arg sensor_name)/driver/enable_tof` (`std_srvs/SetBool`)
+  - Enable the ToF sensor
+- `$(arg sensor_name)/driver/enable_intensity` (`std_srvs/SetBool`)
+  - Enable the intensity sensor
+
+Examples are shown below to enable the ToF sensor or the intensity sensor.
+
+**Terminal-1**
+``` bash
+source ~/wrpps_ws/devel/setup.bash
+roslaunch wrpps_ros wrpps_single_board.launch
+```
+
+**Terminal-2** : Enable the ToF sensor
+``` bash
+$ source ~/wrpps_ws/devel/setup.bash
+$ rosservice call /wrpps_single_board/driver/enable_tof true
+success: True
+message: ''
+$
+```
+
+**Terminal-2** : Enable the intensity sensor
+``` bash
+$ source ~/wrpps_ws/devel/setup.bash
+$ rosservice call /wrpps_single_board/driver/enable_intensity true
+success: True
+message: ''
+$
+```
