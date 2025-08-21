@@ -38,6 +38,7 @@ WrPPS Single Board has 2 type of proximity sensors, a ToF range sensor and a pro
     - 4 pin
     - SM04B-SRSS-TB(LF)(SN) - JST
       - https://www.jst-mfg.com/product/index.php?series=231
+    - Compatible with [SparkFun Qwiic Connect System](https://www.sparkfun.com/qwiic)
 
 
 ### Connector Pin Asignment
