@@ -60,6 +60,14 @@ The following models of the Arduino series have been confirmed to work.
 - Arduino UNO R4 MINIMA
 - Arduino nano Every
 
+The following Arduino board models were found to be **incompatible**. ( https://github.com/tork-a/wrpps_ros/issues/1 )
+
+- Arduino LEONARDO
+- Arduino UNO R3
+- Arduino nano
+- Arduino nano R4
+- Arduino DUE
+
 <br>
 
 
